@@ -92,41 +92,39 @@ namespace ChinaHuJinXieHuiJob.lib
         /// </summary>
         /// <param name="userId">签名方ID</param>
         /// <param name="userKey">曲线的各个参数</param>
-        /// <returns></returns>
-        public virtual byte[] Sm2GetZ(byte[] userId, ECPoint userKey)
+        /// <returns></returns>       
+        public byte[] Sm2GetZ(byte[] userId, ECPoint userKey)
         {
             SM3Digest sm3 = new SM3Digest();
             byte[] p;
             // userId length
-            int len = userId.Length * 8;//求userId的长度
-            sm3.Update((byte)(len >> 8 & 0x00ff));
-            sm3.Update((byte)(len & 0x00ff));
+            int len = userId.Length * 8;
+            sm3.update((byte)(len >> 8 & 0x00ff));
+            sm3.update((byte)(len & 0x00ff));
 
             // userId
-            sm3.BlockUpdate(userId, 0, userId.Length);
+            sm3.update(userId, 0, userId.Length);
 
             // a,b
             p = ecc_a.ToByteArray();
-            sm3.BlockUpdate(p, 0, p.Length);
+            sm3.update(p, 0, p.Length);
             p = ecc_b.ToByteArray();
-            sm3.BlockUpdate(p, 0, p.Length);
+            sm3.update(p, 0, p.Length);
             // gx,gy
             p = ecc_gx.ToByteArray();
-            sm3.BlockUpdate(p, 0, p.Length);
+            sm3.update(p, 0, p.Length);
             p = ecc_gy.ToByteArray();
-            sm3.BlockUpdate(p, 0, p.Length);
+            sm3.update(p, 0, p.Length);
 
             // x,y
-            //p = userKey.X.ToBigInteger().ToByteArray();
-            p = userKey.XCoord.ToBigInteger().ToByteArray();
-            sm3.BlockUpdate(p, 0, p.Length);
-            //p = userKey.Y.ToBigInteger().ToByteArray();
-            p = userKey.YCoord.ToBigInteger().ToByteArray();
-            sm3.BlockUpdate(p, 0, p.Length);
+            p = userKey.XCoord.GetEncoded();
+            sm3.update(p, 0, p.Length);
+            p = userKey.YCoord.GetEncoded();
+            sm3.update(p, 0, p.Length);
 
             // Z
-            byte[] md = new byte[sm3.GetDigestSize()];
-            sm3.DoFinal(md, 0);
+            byte[] md = new byte[sm3.getDigestSize()];
+            sm3.doFinal(md, 0);
 
             return md;
         }
@@ -280,32 +278,28 @@ namespace ChinaHuJinXieHuiJob.lib
 
             private void Reset()
             {
-                sm3keybase = new SM3Digest();//实例化一个SM3Digest的对象sm3keybase
-                sm3c3 = new SM3Digest();//实例化一个SM3Digest的对象sm3c3
+                this.sm3keybase = new SM3Digest();
+                this.sm3c3 = new SM3Digest();
 
-                byte[] p;
+                byte[] p = Util.byteConvert32Bytes(p2.XCoord.ToBigInteger());
+                this.sm3keybase.update(p, 0, p.Length);
+                this.sm3c3.update(p, 0, p.Length);
 
-                //p = p2.X.ToBigInteger().ToByteArray();//数据类型转化为比特串。
-                p = p2.XCoord.ToBigInteger().ToByteArray();//数据类型转化为比特串。
-                sm3keybase.BlockUpdate(p, 0, p.Length);//调用密码杂凑BlockUpdate方法
-                sm3c3.BlockUpdate(p, 0, p.Length);//调用密码杂凑BlockUpdate方法
+                p = Util.byteConvert32Bytes(p2.YCoord.ToBigInteger());
+                this.sm3keybase.update(p, 0, p.Length);
+                this.ct = 1;
+                NextKey();
 
-                //p = p2.Y.ToBigInteger().ToByteArray();//数据类型转化为比特串
-                p = p2.YCoord.ToBigInteger().ToByteArray();//数据类型转化为比特串
-                sm3keybase.BlockUpdate(p, 0, p.Length);//调用密码杂凑BlockUpdate方法
-
-                ct = 1;
-                NextKey();//调用NextKey方法
             }
 
             private void NextKey()
             {
-                SM3Digest sm3keycur = new SM3Digest(sm3keybase);
-                sm3keycur.Update((byte)(ct >> 24 & 0x00ff));//调用密码杂凑Update方法
-                sm3keycur.Update((byte)(ct >> 16 & 0x00ff));//调用密码杂凑Update方法
-                sm3keycur.Update((byte)(ct >> 8 & 0x00ff));//调用密码杂凑Update方法
-                sm3keycur.Update((byte)(ct & 0x00ff));
-                sm3keycur.DoFinal(key, 0);//调用密码杂凑DoFinal方法
+                SM3Digest sm3keycur = new SM3Digest();
+                sm3keycur.update((byte)(ct >> 24 & 0x00ff));//调用密码杂凑Update方法
+                sm3keycur.update((byte)(ct >> 16 & 0x00ff));//调用密码杂凑Update方法
+                sm3keycur.update((byte)(ct >> 8 & 0x00ff));//调用密码杂凑Update方法
+                sm3keycur.update((byte)(ct & 0x00ff));
+                sm3keycur.doFinal(key, 0);//调用密码杂凑DoFinal方法
                 keyOff = 0;
                 ct++;
             }
@@ -336,7 +330,7 @@ namespace ChinaHuJinXieHuiJob.lib
 
             public virtual void Encrypt(byte[] data)
             {
-                sm3c3.BlockUpdate(data, 0, data.Length);
+                sm3c3.update(data, 0, data.Length);
                 for (int i = 0; i < data.Length; i++)
                 {
                     if (keyOff == key.Length)
@@ -361,15 +355,15 @@ namespace ChinaHuJinXieHuiJob.lib
 
                     data[i] ^= key[keyOff++];
                 }
-                sm3c3.BlockUpdate(data, 0, data.Length);
+                sm3c3.update(data, 0, data.Length);
             }
 
             public virtual void Dofinal(byte[] c3)//密码杂凑中的方法
             {
                 //byte[] p = p2.Y.ToBigInteger().ToByteArray();
                 byte[] p = p2.YCoord.ToBigInteger().ToByteArray();
-                sm3c3.BlockUpdate(p, 0, p.Length);
-                sm3c3.DoFinal(c3, 0);
+                sm3c3.update(p, 0, p.Length);
+                sm3c3.doFinal(c3, 0);
                 Reset();
             }
         }
@@ -396,7 +390,7 @@ namespace ChinaHuJinXieHuiJob.lib
         }
 
         //数据加密  
-        public static String encrypt(byte[] publicKey, byte[] data)
+        public static byte[] encrypt(byte[] publicKey, byte[] data)
         {
             if (publicKey == null || publicKey.Length == 0)
             {
@@ -420,12 +414,12 @@ namespace ChinaHuJinXieHuiJob.lib
             byte[] c3 = new byte[32];
             cipher.Dofinal(c3);
 
-            //      System.out.println("C1 " + Util.byteToHex(c1.getEncoded()));  
-            //      System.out.println("C2 " + Util.byteToHex(source));  
-            //      System.out.println("C3 " + Util.byteToHex(c3));  
-            //C1 C2 C3拼装成加密字串  
-            //return Util.byteToHex(c1.GetEncoded()) + Util.byteToHex(source) + Util.byteToHex(c3);
-            return Utils.BytesTohexString(c1.GetEncoded()) + Utils.BytesTohexString(source) + Utils.BytesTohexString(c3);
+            byte[] result = new byte[c1.GetEncoded().Length + source.Length + c3.Length];
+            Array.Copy(c1.GetEncoded(), 0, result, 0, 65);
+            Array.Copy(source, 0, result, 65, source.Length);
+            Array.Copy(c3, 0, result, 65 + source.Length, 32);
+
+            return result;
 
         }
 
@@ -441,22 +435,18 @@ namespace ChinaHuJinXieHuiJob.lib
             {
                 return null;
             }
-            //加密字节数组转换为十六进制的字符串 长度变为encryptedData.length * 2  
-            //string data = Util.byteToHex(encryptedData);
-            string data = Utils.BytesTohexString(encryptedData);
-
             /***分解加密字串 
              * （C1 = C1标志位2位 + C1实体部分128位 = 130） 
              * （C3 = C3实体部分64位  = 64） 
              * （C2 = encryptedData.length * 2 - C1长度  - C2长度） 
              */
-            //byte[] c1Bytes = Util.hexToByte(data.Substring(0, 130));
-            byte[] c1Bytes = Utils.HexStringToBytes(data.Substring(0, 130));
+            byte[] c1Bytes = new byte[65];
+            Array.Copy(encryptedData, 0, c1Bytes, 0, 65);
             int c2Len = encryptedData.Length - 97;
-            //byte[] c2 = Util.hexToByte(data.Substring(130, 130 + 2 * c2Len));
-            //byte[] c3 = Util.hexToByte(data.Substring(130 + 2 * c2Len, 194 + 2 * c2Len));
-            byte[] c2 = Utils.HexStringToBytes(data.Substring(130, 130 + 2 * c2Len));
-            byte[] c3 = Utils.HexStringToBytes(data.Substring(130 + 2 * c2Len, 194 + 2 * c2Len));
+            byte[] c2 = new byte[c2Len];
+            Array.Copy(encryptedData, 65, c2, 0, c2Len);
+            byte[] c3 = new byte[32];
+            Array.Copy(encryptedData, c2Len + 65, c3, 0, 32);
 
             SM2 sm2 = SM2.Instance;
             BigInteger userD = new BigInteger(1, privateKey);
@@ -496,418 +486,761 @@ namespace ChinaHuJinXieHuiJob.lib
         //}  
     }
 
-}
 
-
-
-namespace ChinaHuJinXieHuiJob.lib
-{
-    public abstract class GeneralDigest : IDigest
+    public class SM3Digest
     {
-        private const int BYTE_LENGTH = 64;
 
-        private byte[] xBuf;
+
+        /** SM3值的长度 */
+        private static readonly int BYTE_LENGTH = 32;
+
+        /** SM3分组长度 */
+        private static readonly int BLOCK_LENGTH = 64;
+
+        /** 缓冲区长度 */
+        private static readonly int BUFFER_LENGTH = BLOCK_LENGTH * 1;
+
+        /** 缓冲区 */
+        private byte[] xBuf = new byte[BUFFER_LENGTH];
+
+        /** 缓冲区偏移量 */
         private int xBufOff;
 
-        private long byteCount;
+        /** 初始向量 */
+        private byte[] V = (byte[])SM3.iv.Clone();
 
-        internal GeneralDigest()
+        private int cntBlock = 0;
+
+        public SM3Digest()
         {
-            xBuf = new byte[4];
         }
 
-        internal GeneralDigest(GeneralDigest t)
+        public SM3Digest(SM3Digest t)
         {
-            xBuf = new byte[t.xBuf.Length];
-            Array.Copy(t.xBuf, 0, xBuf, 0, t.xBuf.Length);
-
-            xBufOff = t.xBufOff;
-            byteCount = t.byteCount;
+            System.Array.Copy(t.xBuf, 0, this.xBuf, 0, t.xBuf.Length);
+            this.xBufOff = t.xBufOff;
+            System.Array.Copy(t.V, 0, this.V, 0, t.V.Length);
         }
 
-        public void Update(byte input)
+        /**
+         * SM3结果输出
+         * 
+         * @param out 保存SM3结构的缓冲区
+         * @param outOff 缓冲区偏移量
+         * @return
+         */
+        public int doFinal(byte[] outData, int outOff)
         {
-            xBuf[xBufOff++] = input;
-
-            if (xBufOff == xBuf.Length)
-            {
-                ProcessWord(xBuf, 0);
-                xBufOff = 0;
-            }
-
-            byteCount++;
+            byte[] tmp = doFinal();
+            System.Array.Copy(tmp, 0, outData, 0, tmp.Length);
+            return BYTE_LENGTH;
         }
 
-        public void BlockUpdate(byte[] input,int inOff,int length)
+        public void reset()
         {
-            //
-            // fill the current word
-            //
-            while ((xBufOff != 0) && (length > 0))
-            {
-                Update(input[inOff]);
-                inOff++;
-                length--;
-            }
-
-            //
-            // process whole words.
-            //
-            while (length > xBuf.Length)
-            {
-                ProcessWord(input, inOff);
-
-                inOff += xBuf.Length;
-                length -= xBuf.Length;
-                byteCount += xBuf.Length;
-            }
-
-            //
-            // load in the remainder.
-            //
-            while (length > 0)
-            {
-                Update(input[inOff]);
-
-                inOff++;
-                length--;
-            }
-        }
-
-        public void Finish()
-        {
-            long bitLength = (byteCount << 3);
-
-            //
-            // add the pad bytes.
-            //
-            Update(unchecked((byte)128));
-
-            while (xBufOff != 0) Update(unchecked((byte)0));
-            ProcessLength(bitLength);
-            ProcessBlock();
-        }
-
-        public virtual void Reset()
-        {
-            byteCount = 0;
             xBufOff = 0;
-            Array.Clear(xBuf, 0, xBuf.Length);
+            cntBlock = 0;
+            V = (byte[])SM3.iv.Clone();
         }
 
-        public int GetByteLength()
+        /**
+         * 明文输入
+         * 
+         * @param in
+         *            明文输入缓冲区
+         * @param inOff
+         *            缓冲区偏移量
+         * @param len
+         *            明文长度
+         */
+        public void update(byte[] inData, int inOff, int len)
+        {
+            int partLen = BUFFER_LENGTH - xBufOff;
+            int inputLen = len;
+            int dPos = inOff;
+            if (partLen < inputLen)
+            {
+                System.Array.Copy(inData, dPos, xBuf, xBufOff, partLen);
+                inputLen -= partLen;
+                dPos += partLen;
+                doUpdate();
+                while (inputLen > BUFFER_LENGTH)
+                {
+                    System.Array.Copy(inData, dPos, xBuf, 0, BUFFER_LENGTH);
+                    inputLen -= BUFFER_LENGTH;
+                    dPos += BUFFER_LENGTH;
+                    doUpdate();
+                }
+            }
+
+            System.Array.Copy(inData, dPos, xBuf, xBufOff, inputLen);
+            xBufOff += inputLen;
+        }
+
+        private void doUpdate()
+        {
+            byte[] B = new byte[BLOCK_LENGTH];
+            for (int i = 0; i < BUFFER_LENGTH; i += BLOCK_LENGTH)
+            {
+                System.Array.Copy(xBuf, i, B, 0, B.Length);
+                doHash(B);
+            }
+            xBufOff = 0;
+        }
+
+        private void doHash(byte[] B)
+        {
+            byte[] tmp = SM3.CF(V, B);
+            System.Array.Copy(tmp, 0, V, 0, V.Length);
+            cntBlock++;
+        }
+
+        private byte[] doFinal()
+        {
+            byte[] B = new byte[BLOCK_LENGTH];
+            byte[] buffer = new byte[xBufOff];
+            System.Array.Copy(xBuf, 0, buffer, 0, buffer.Length);
+            byte[] tmp = SM3.padding(buffer, cntBlock);
+            for (int i = 0; i < tmp.Length; i += BLOCK_LENGTH)
+            {
+                System.Array.Copy(tmp, i, B, 0, B.Length);
+                doHash(B);
+            }
+            return V;
+        }
+
+        public void update(byte inData)
+        {
+            byte[] buffer = new byte[] { inData };
+            update(buffer, 0, 1);
+        }
+
+        public int getDigestSize()
         {
             return BYTE_LENGTH;
         }
 
-        internal abstract void ProcessWord(byte[] input, int inOff);
-        internal abstract void ProcessLength(long bitLength);
-        internal abstract void ProcessBlock();
-        public abstract string AlgorithmName { get; }
-        public abstract int GetDigestSize();
-        public abstract int DoFinal(byte[] output, int outOff);
+        //public static void main(String[] args) 
+        //{
+        //    byte[] md = new byte[32];
+        //    byte[] msg1 = "ererfeiisgod".getBytes();
+        //    SM3Digest sm3 = new SM3Digest();
+        //    sm3.update(msg1, 0, msg1.length);
+        //    sm3.doFinal(md, 0);
+        //    String s = new String(Hex.encode(md));
+        //    System.out.println(s.toUpperCase());
+        //}
     }
 
-    public class SupportClass
+    public class SM3
     {
-        /// <summary>
-        /// Performs an unsigned bitwise right shift with the specified number
-        /// </summary>
-        /// <param name="number">Number to operate on</param>
-        /// <param name="bits">Ammount of bits to shift</param>
-        /// <returns>The resulting number from the shift operation</returns>
-        public static int URShift(int number, int bits)
+        public static readonly byte[] iv = new BigInteger("7380166f4914b2b9172442d7da8a0600a96f30bc163138aae38dee4db0fb0e4e", 16).ToByteArray();
+
+        public static int[] Tj = {
+                                 0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519,0x79cc4519
+                                 ,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a
+                                 ,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a
+                                 ,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a
+                                 ,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a,0x7a879d8a
+                             };
+
+        public static byte[] CF(byte[] V, byte[] B)
         {
-            if (number >= 0)
-                return number >> bits;
+            int[] v, b;
+            v = convert(V);
+            b = convert(B);
+
+            return convert(CF(v, b));
+        }
+
+        private static int[] convert(byte[] arr)
+        {
+            int[] outData = new int[arr.Length / 4];
+            byte[] tmp = new byte[4];
+            for (int i = 0; i < arr.Length; i += 4)
+            {
+                System.Array.Copy(arr, i, tmp, 0, 4);
+                outData[i / 4] = bigEndianByteToInt(tmp);
+            }
+
+            return outData;
+        }
+
+        private static byte[] convert(int[] arr)
+        {
+            byte[] outData = new byte[arr.Length * 4];
+            byte[] tmp = null;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                tmp = bigEndianIntToByte(arr[i]);
+                System.Array.Copy(tmp, 0, outData, i * 4, 4);
+            }
+
+            return outData;
+        }
+
+        public static int[] CF(int[] V, int[] B)
+        {
+            int a, b, c, d, e, f, g, h;
+            int ss1, ss2, tt1, tt2;
+            a = V[0];
+            b = V[1];
+            c = V[2];
+            d = V[3];
+            e = V[4];
+            f = V[5];
+            g = V[6];
+            h = V[7];
+            /*
+             * System.out.print("  "); System.out.print(Integer.toHexString(a)+" ");
+             * System.out.print(Integer.toHexString(b)+" ");
+             * System.out.print(Integer.toHexString(c)+" ");
+             * System.out.print(Integer.toHexString(d)+" ");
+             * System.out.print(Integer.toHexString(e)+" ");
+             * System.out.print(Integer.toHexString(f)+" ");
+             * System.out.print(Integer.toHexString(g)+" ");
+             * System.out.print(Integer.toHexString(h)+" "); System.out.println();
+             */
+            /*
+             * System.out.println("block ..."); for(int i=0; i<B.length; i++) {
+             * System.out.print(Integer.toHexString(B[i])+" "); }
+             * System.out.println(); System.out.println("iv ..."); for(int i=0;
+             * i<V.length; i++) { System.out.print(Integer.toHexString(V[i])+" "); }
+             * System.out.println();
+             */
+
+            int[][] arr = expand(B);
+            int[] w = arr[0];
+            int[] w1 = arr[1];
+            /*
+             * System.out.println("W"); print(w); System.out.println("W1");
+             * print(w1);
+             */
+            // System.out.println("---------------------------------------------------------");
+            for (int j = 0; j < 64; j++)
+            {
+                ss1 = (bitCycleLeft(a, 12) + e + bitCycleLeft(Tj[j], j));
+                ss1 = bitCycleLeft(ss1, 7);
+                ss2 = ss1 ^ bitCycleLeft(a, 12);
+                tt1 = FFj(a, b, c, j) + d + ss2 + w1[j];
+                tt2 = GGj(e, f, g, j) + h + ss1 + w[j];
+                d = c;
+                c = bitCycleLeft(b, 9);
+                b = a;
+                a = tt1;
+                h = g;
+                g = bitCycleLeft(f, 19);
+                f = e;
+                e = P0(tt2);
+
+                /*
+                 * System.out.print(j+" ");
+                 * System.out.print(Integer.toHexString(a)+" ");
+                 * System.out.print(Integer.toHexString(b)+" ");
+                 * System.out.print(Integer.toHexString(c)+" ");
+                 * System.out.print(Integer.toHexString(d)+" ");
+                 * System.out.print(Integer.toHexString(e)+" ");
+                 * System.out.print(Integer.toHexString(f)+" ");
+                 * System.out.print(Integer.toHexString(g)+" ");
+                 * System.out.print(Integer.toHexString(h)+" ");
+                 * System.out.println();
+                 */
+            }
+            // System.out.println("*****************************************");
+
+            int[] outData = new int[8];
+            outData[0] = a ^ V[0];
+            outData[1] = b ^ V[1];
+            outData[2] = c ^ V[2];
+            outData[3] = d ^ V[3];
+            outData[4] = e ^ V[4];
+            outData[5] = f ^ V[5];
+            outData[6] = g ^ V[6];
+            outData[7] = h ^ V[7];
+
+            return outData;
+        }
+
+        private static int[][] expand(byte[] B)
+        {
+            // PrintUtil.printWithHex(B);
+            int[] W = new int[68];
+            int[] W1 = new int[64];
+            byte[] tmp = new byte[4];
+            for (int i = 0; i < B.Length; i += 4)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    tmp[j] = B[i + j];
+                }
+                W[i / 4] = bigEndianByteToInt(tmp);
+            }
+
+            for (int i = 16; i < 68; i++)
+            {
+                W[i] = P1(W[i - 16] ^ W[i - 9] ^ bitCycleLeft(W[i - 3], 15)) ^ bitCycleLeft(W[i - 13], 7) ^ W[i - 6];
+            }
+
+            for (int i = 0; i < 64; i++)
+            {
+                W1[i] = W[i] ^ W[i + 4];
+            }
+
+            int[][] arr = new int[][] { W, W1 };
+
+            return arr;
+        }
+
+        private static int[][] expand(int[] B)
+        {
+            int[] W = new int[68];
+            int[] W1 = new int[64];
+            for (int i = 0; i < B.Length; i++)
+            {
+                W[i] = B[i];
+            }
+
+            for (int i = 16; i < 68; i++)
+            {
+                W[i] = P1(W[i - 16] ^ W[i - 9] ^ bitCycleLeft(W[i - 3], 15)) ^ bitCycleLeft(W[i - 13], 7) ^ W[i - 6];
+            }
+
+            for (int i = 0; i < 64; i++)
+            {
+                W1[i] = W[i] ^ W[i + 4];
+            }
+
+            int[][] arr = new int[][] { W, W1 };
+
+            return arr;
+        }
+
+        private static byte[] bigEndianIntToByte(int num)
+        {
+            return back(Util.IntToByte(num));
+        }
+
+        private static int bigEndianByteToInt(byte[] bytes)
+        {
+            return Util.ByteToInt(back(bytes));
+        }
+
+        private static int FFj(int X, int Y, int Z, int j)
+        {
+            if (j >= 0 && j <= 15)
+            {
+                return FF1j(X, Y, Z);
+            }
             else
-                return (number >> bits) + (2 << ~bits);
+            {
+                return FF2j(X, Y, Z);
+            }
         }
 
-        /// <summary>
-        /// Performs an unsigned bitwise right shift with the specified number
-        /// </summary>
-        /// <param name="number">Number to operate on</param>
-        /// <param name="bits">Ammount of bits to shift</param>
-        /// <returns>The resulting number from the shift operation</returns>
-        public static int URShift(int number, long bits)
+        private static int GGj(int X, int Y, int Z, int j)
         {
-            return URShift(number, (int)bits);
-        }
-
-        /// <summary>
-        /// Performs an unsigned bitwise right shift with the specified number
-        /// </summary>
-        /// <param name="number">Number to operate on</param>
-        /// <param name="bits">Ammount of bits to shift</param>
-        /// <returns>The resulting number from the shift operation</returns>
-        public static long URShift(long number, int bits)
-        {
-            if (number >= 0)
-                return number >> bits;
+            if (j >= 0 && j <= 15)
+            {
+                return GG1j(X, Y, Z);
+            }
             else
-                return (number >> bits) + (2L << ~bits);
+            {
+                return GG2j(X, Y, Z);
+            }
         }
 
-        /// <summary>
-        /// Performs an unsigned bitwise right shift with the specified number
-        /// </summary>
-        /// <param name="number">Number to operate on</param>
-        /// <param name="bits">Ammount of bits to shift</param>
-        /// <returns>The resulting number from the shift operation</returns>
-        public static long URShift(long number, long bits)
+        /***********************************************/
+        // 逻辑位运算函数
+        private static int FF1j(int X, int Y, int Z)
         {
-            return URShift(number, (int)bits);
+            int tmp = X ^ Y ^ Z;
+
+            return tmp;
         }
 
+        private static int FF2j(int X, int Y, int Z)
+        {
+            int tmp = ((X & Y) | (X & Z) | (Y & Z));
 
+            return tmp;
+        }
+
+        private static int GG1j(int X, int Y, int Z)
+        {
+            int tmp = X ^ Y ^ Z;
+
+            return tmp;
+        }
+
+        private static int GG2j(int X, int Y, int Z)
+        {
+            int tmp = (X & Y) | (~X & Z);
+
+            return tmp;
+        }
+
+        private static int P0(int X)
+        {
+            int y = rotateLeft(X, 9);
+            y = bitCycleLeft(X, 9);
+            int z = rotateLeft(X, 17);
+            z = bitCycleLeft(X, 17);
+            int t = X ^ y ^ z;
+
+            return t;
+        }
+
+        private static int P1(int X)
+        {
+            int t = X ^ bitCycleLeft(X, 15) ^ bitCycleLeft(X, 23);
+
+            return t;
+        }
+
+        /**
+         * 对最后一个分组字节数据padding
+         * 
+         * @param in
+         * @param bLen
+         *            分组个数
+         * @return
+         */
+        public static byte[] padding(byte[] inData, int bLen)
+        {
+            // 第一bit为1 所以长度=8 * in.length+1 k为所补的bit k+1/8 为需要补的字节
+            int k = 448 - (8 * inData.Length + 1) % 512;
+            if (k < 0)
+            {
+                k = 960 - (8 * inData.Length + 1) % 512;
+            }
+            k += 1;
+            byte[] padd = new byte[k / 8];
+            padd[0] = (byte)0x80;
+            long n = inData.Length * 8 + bLen * 512;
+            // 64/8 字节 长度
+            // k/8 字节padding
+            byte[] outData = new byte[inData.Length + k / 8 + 64 / 8];
+            int pos = 0;
+            System.Array.Copy(inData, 0, outData, 0, inData.Length);
+            pos += inData.Length;
+            System.Array.Copy(padd, 0, outData, pos, padd.Length);
+            pos += padd.Length;
+            byte[] tmp = back(Util.LongToByte(n));
+            System.Array.Copy(tmp, 0, outData, pos, tmp.Length);
+
+            return outData;
+        }
+
+        /**
+         * 字节数组逆序
+         * 
+         * @param in
+         * @return
+         */
+        private static byte[] back(byte[] inData)
+        {
+            byte[] outData = new byte[inData.Length];
+            for (int i = 0; i < outData.Length; i++)
+            {
+                outData[i] = inData[outData.Length - i - 1];
+            }
+
+            return outData;
+        }
+
+        public static int rotateLeft(int x, int n)
+        {
+            return (x << n) | (x >> (32 - n));
+            // return (((x) << (n)) | ((x) >> (32-(n))));
+        }
+
+        private static int bitCycleLeft(int n, int bitLen)
+        {
+            bitLen %= 32;
+            byte[] tmp = bigEndianIntToByte(n);
+            int byteLen = bitLen / 8;
+            int len = bitLen % 8;
+            if (byteLen > 0)
+            {
+                tmp = byteCycleLeft(tmp, byteLen);
+            }
+
+            if (len > 0)
+            {
+                tmp = bitSmall8CycleLeft(tmp, len);
+            }
+
+            return bigEndianByteToInt(tmp);
+        }
+
+        private static byte[] bitSmall8CycleLeft(byte[] inData, int len)
+        {
+            byte[] tmp = new byte[inData.Length];
+            int t1, t2, t3;
+            for (int i = 0; i < tmp.Length; i++)
+            {
+                t1 = (byte)((inData[i] & 0x000000ff) << len);
+                t2 = (byte)((inData[(i + 1) % tmp.Length] & 0x000000ff) >> (8 - len));
+                t3 = (byte)(t1 | t2);
+                tmp[i] = (byte)t3;
+            }
+
+            return tmp;
+        }
+
+        private static byte[] byteCycleLeft(byte[] inData, int byteLen)
+        {
+            byte[] tmp = new byte[inData.Length];
+            System.Array.Copy(inData, byteLen, tmp, 0, inData.Length - byteLen);
+            System.Array.Copy(inData, 0, tmp, inData.Length - byteLen, byteLen);
+
+            return tmp;
+        }
+
+        //public static void main(String[] args) {
+
+        //    SM3Digest sm3 = new SM3Digest();
+        //    byte[] x = { (byte) 0xa5, (byte) 0x79, (byte) 0x7b, (byte) 0x61, (byte) 0x24, (byte) 0xd7, (byte) 0x6d, (byte) 0x4d, (byte) 0xdf, (byte) 0x09, (byte) 0xce, (byte) 0xb8, (byte) 0x1e,
+        //            (byte) 0x7f, (byte) 0x13, (byte) 0xc2, (byte) 0xaa, (byte) 0x34, (byte) 0x78, (byte) 0xa8, (byte) 0x54, (byte) 0x74, (byte) 0xce, (byte) 0x21, (byte) 0x18, (byte) 0x93, (byte) 0xa9,
+        //            (byte) 0x6f, (byte) 0x0c, (byte) 0x44, (byte) 0xac, (byte) 0xda };
+        //    byte[] y = { (byte) 0x56, (byte) 0x93, (byte) 0xb0, (byte) 0x28, (byte) 0x69, (byte) 0xa4, (byte) 0x6d, (byte) 0x94, (byte) 0xe4, (byte) 0xc4, (byte) 0x80, (byte) 0xe0, (byte) 0xb7,
+        //            (byte) 0xa4, (byte) 0x49, (byte) 0xc6, (byte) 0xae, (byte) 0x1a, (byte) 0xcf, (byte) 0xad, (byte) 0x55, (byte) 0x69, (byte) 0x89, (byte) 0x6d, (byte) 0x76, (byte) 0x84, (byte) 0xac,
+        //            (byte) 0xef, (byte) 0xbe, (byte) 0x3a, (byte) 0xfa, (byte) 0xf2 };
+        //    String s = "1111";
+        //    byte[] sm2Za = sm3.getSM2Za(x, y, "1234567812345678".getBytes());
+        //    sm3.update(sm2Za, 0, sm2Za.length);
+        //    // printHexString(sm2Za);
+        //    System.out.println("\n");
+        //    byte[] p = s.getBytes();
+        //    sm3.update(p, 0, p.length);
+        //    // printHexString(p);
+        //    System.out.println("\n");
+        //    byte[] md = new byte[32];
+        //    sm3.doFinal(md, 0);
+        //}
+
+        //public static void print(int[] arr) {
+        //    for (int i = 0; i < arr.length; i++) {
+        //        /*
+        //         * System.out.print(PrintUtil.toHexString(back(ConvertUtil.IntToByte(
+        //         * arr[i]))) + " "); if((i+1) % 8 == 0) { System.out.println(); }
+        //         */
+        //        System.out.print(Integer.toHexString(arr[i]) + " ");
+        //        if ((i + 1) % 16 == 0) {
+        //            System.out.println();
+        //        }
+        //    }
+        //    System.out.println();
+        //}
     }
 
-    public class SM3Digest : GeneralDigest
+    public class Util
     {
-        public override string AlgorithmName
+        private static BigInteger p = new BigInteger("FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFF", 16);
+        private static BigInteger a = new BigInteger("FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFC", 16);
+        private static BigInteger b = new BigInteger("28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E93", 16);
+        private static BigInteger n = new BigInteger("FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123", 16);
+        private static BigInteger Gx = new BigInteger("32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7", 16);
+        private static BigInteger Gy = new BigInteger("BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0", 16);
+
+        // private static BigInteger p = new BigInteger(
+        // "FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFF",
+        // 16);
+        // private static BigInteger a = new BigInteger(
+        // "FFFFFFFC00000003FFFFFFFFFFFFFFFCFFFFFFFF000000010000000000000001",
+        // 16);
+        // private static BigInteger b = new BigInteger(
+        // "00000000000000000000000000000000FFFFFFFBFFFFFFFFFFFFFFFFFFFFFFFF",
+        // 16);
+        // private static BigInteger n = new BigInteger(
+        // "FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123",
+        // 16);
+        // private static BigInteger Gx = new BigInteger(
+        // "FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123",
+        // 16);
+        // private static BigInteger Gy = new BigInteger(
+        // "FFFFFFFF00000000FFFFFFFFFFFFFFFCFFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF",
+        // 16);
+        /*
+         * private static BigInteger p = new
+         * BigInteger("8542D69E4C044F18E8B92435BF6FF7DE457283915C45517D722EDB8B08F1DFC3"
+         * , 16); private static BigInteger a = new
+         * BigInteger("787968B4FA32C3FD2417842E73BBFEFF2F3C848B6831D7E0EC65228B3937E498"
+         * , 16); private static BigInteger b = new
+         * BigInteger("63E4C6D3B23B0C849CF84241484BFE48F61D59A5B16BA06E6E12D1DA27C5249A"
+         * , 16); private static BigInteger n = new
+         * BigInteger("8542D69E4C044F18E8B92435BF6FF7DD297720630485628D5AE74EE7C32E79B7"
+         * , 16); private static BigInteger Gx = new
+         * BigInteger("421DEBD61B62EAB6746434EBC3CC315E32220B3BADD50BDC4C4E6C147FEDD43D"
+         * , 16); private static BigInteger Gy = new
+         * BigInteger("0680512BCBB42C07D47349D2153B70C4E5D7FDFCBFA36EA1A85841B9E46E09A2"
+         * , 16);
+         */
+        public static byte[] getP()
         {
-            get
-            {
-                return "SM3";
-            }
-
-        }
-        public override int GetDigestSize()
-        {
-            return DIGEST_LENGTH;
-        }
-
-        private const int DIGEST_LENGTH = 32;
-
-        private static readonly int[] v0 = new int[] { 0x7380166f, 0x4914b2b9, 0x172442d7, unchecked((int)0xda8a0600), unchecked((int)0xa96f30bc), 0x163138aa, unchecked((int)0xe38dee4d), unchecked((int)0xb0fb0e4e) };
-
-        private int[] v = new int[8];
-        private int[] v_ = new int[8];
-
-        private static readonly int[] X0 = new int[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
-        private int[] X = new int[68];
-        private int xOff;
-
-        private int T_00_15 = 0x79cc4519;
-        private int T_16_63 = 0x7a879d8a;
-
-        public SM3Digest()
-        {
-            Reset();
-        }
-
-        public SM3Digest(SM3Digest t)
-            : base(t)
-        {
-
-            Array.Copy(t.X, 0, X, 0, t.X.Length);
-            xOff = t.xOff;
-
-            Array.Copy(t.v, 0, v, 0, t.v.Length);
-        }
-
-        public override void Reset()
-        {
-            base.Reset();
-
-            Array.Copy(v0, 0, v, 0, v0.Length);
-
-            xOff = 0;
-            Array.Copy(X0, 0, X, 0, X0.Length);
+            return asUnsigned32ByteArray(p);
         }
 
-        internal override void ProcessBlock()
+        public static byte[] getA()
         {
-            int i;
-
-            int[] ww = X;
-            int[] ww_ = new int[64];
-
-            for (i = 16; i < 68; i++)
-            {
-                ww[i] = P1(ww[i - 16] ^ ww[i - 9] ^ (ROTATE(ww[i - 3], 15))) ^ (ROTATE(ww[i - 13], 7)) ^ ww[i - 6];
-            }
-
-            for (i = 0; i < 64; i++)
-            {
-                ww_[i] = ww[i] ^ ww[i + 4];
-            }
-
-            int[] vv = v;
-            int[] vv_ = v_;
-
-            Array.Copy(vv, 0, vv_, 0, v0.Length);
-
-            int SS1, SS2, TT1, TT2, aaa;
-            for (i = 0; i < 16; i++)
-            {
-                aaa = ROTATE(vv_[0], 12);
-                SS1 = aaa + vv_[4] + ROTATE(T_00_15, i);
-                SS1 = ROTATE(SS1, 7);
-                SS2 = SS1 ^ aaa;
-
-                TT1 = FF_00_15(vv_[0], vv_[1], vv_[2]) + vv_[3] + SS2 + ww_[i];
-                TT2 = GG_00_15(vv_[4], vv_[5], vv_[6]) + vv_[7] + SS1 + ww[i];
-                vv_[3] = vv_[2];
-                vv_[2] = ROTATE(vv_[1], 9);
-                vv_[1] = vv_[0];
-                vv_[0] = TT1;
-                vv_[7] = vv_[6];
-                vv_[6] = ROTATE(vv_[5], 19);
-                vv_[5] = vv_[4];
-                vv_[4] = P0(TT2);
-            }
-            for (i = 16; i < 64; i++)
-            {
-                aaa = ROTATE(vv_[0], 12);
-                SS1 = aaa + vv_[4] + ROTATE(T_16_63, i);
-                SS1 = ROTATE(SS1, 7);
-                SS2 = SS1 ^ aaa;
-
-                TT1 = FF_16_63(vv_[0], vv_[1], vv_[2]) + vv_[3] + SS2 + ww_[i];
-                TT2 = GG_16_63(vv_[4], vv_[5], vv_[6]) + vv_[7] + SS1 + ww[i];
-                vv_[3] = vv_[2];
-                vv_[2] = ROTATE(vv_[1], 9);
-                vv_[1] = vv_[0];
-                vv_[0] = TT1;
-                vv_[7] = vv_[6];
-                vv_[6] = ROTATE(vv_[5], 19);
-                vv_[5] = vv_[4];
-                vv_[4] = P0(TT2);
-            }
-            for (i = 0; i < 8; i++)
-            {
-                vv[i] ^= vv_[i];
-            }
-
-            // Reset
-            xOff = 0;
-            Array.Copy(X0, 0, X, 0, X0.Length);
+            return asUnsigned32ByteArray(a);
         }
 
-        internal override void ProcessWord(byte[] in_Renamed, int inOff)
+        public static byte[] getB()
         {
-            int n = in_Renamed[inOff] << 24;
-            n |= (in_Renamed[++inOff] & 0xff) << 16;
-            n |= (in_Renamed[++inOff] & 0xff) << 8;
-            n |= (in_Renamed[++inOff] & 0xff);
-            X[xOff] = n;
-
-            if (++xOff == 16)
-            {
-                ProcessBlock();
-            }
+            return asUnsigned32ByteArray(b);
         }
 
-        internal override void ProcessLength(long bitLength)
+        public static byte[] getN()
         {
-            if (xOff > 14)
-            {
-                ProcessBlock();
-            }
-
-            X[14] = (int)(SupportClass.URShift(bitLength, 32));
-            X[15] = (int)(bitLength & unchecked((int)0xffffffff));
+            return asUnsigned32ByteArray(n);
         }
 
-        public static void IntToBigEndian(int n, byte[] bs, int off)
+        public static byte[] getGx()
         {
-            bs[off] = (byte)(SupportClass.URShift(n, 24));
-            bs[++off] = (byte)(SupportClass.URShift(n, 16));
-            bs[++off] = (byte)(SupportClass.URShift(n, 8));
-            bs[++off] = (byte)(n);
+            return asUnsigned32ByteArray(Gx);
         }
 
-        public override int DoFinal(byte[] out_Renamed, int outOff)
+        public static byte[] getGy()
         {
-            Finish();
+            return asUnsigned32ByteArray(Gy);
+        }
+
+        /*
+         * static { System.out.println("p len = " + p.toByteArray().length);
+         * System.out.println("a len = " + a.toByteArray().length);
+         * System.out.println("b len = " + b.toByteArray().length);
+         * System.out.println("n len = " + n.toByteArray().length);
+         * System.out.println("Gx len = " + Gx.toByteArray().length);
+         * System.out.println("Gy len = " + Gy.toByteArray().length); }
+         */
+        /**
+         * 整形转换成网络传输的字节流（字节数组）型数据
+         * 
+         * @param num
+         *            一个整型数据
+         * @return 4个字节的自己数组
+         */
+        public static byte[] IntToByte(int num)
+        {
+            byte[] bytes = new byte[4];
+
+            bytes[0] = (byte)(0xff & (num >> 0));
+            bytes[1] = (byte)(0xff & (num >> 8));
+            bytes[2] = (byte)(0xff & (num >> 16));
+            bytes[3] = (byte)(0xff & (num >> 24));
+
+            return bytes;
+        }
+
+        /**
+         * 四个字节的字节数据转换成一个整形数据
+         * 
+         * @param bytes
+         *            4个字节的字节数组
+         * @return 一个整型数据
+         */
+        public static int ByteToInt(byte[] bytes)
+        {
+            int num = 0;
+            int temp;
+            temp = (0x000000ff & (bytes[0])) << 0;
+            num = num | temp;
+            temp = (0x000000ff & (bytes[1])) << 8;
+            num = num | temp;
+            temp = (0x000000ff & (bytes[2])) << 16;
+            num = num | temp;
+            temp = (0x000000ff & (bytes[3])) << 24;
+            num = num | temp;
+
+            return num;
+        }
+
+        public static byte[] LongToByte(long num)
+        {
+            byte[] bytes = new byte[8];
 
             for (int i = 0; i < 8; i++)
             {
-                IntToBigEndian(v[i], out_Renamed, outOff + i * 4);
+                bytes[i] = (byte)(0xff & (num >> (i * 8)));
             }
 
-            Reset();
-
-            return DIGEST_LENGTH;
+            return bytes;
         }
 
-        private int ROTATE(int x, int n)
+        public static byte[] asUnsigned32ByteArray(BigInteger n)
         {
-            return (x << n) | (SupportClass.URShift(x, (32 - n)));
+            return asUnsignedNByteArray(n, 32);
         }
 
-        private int P0(int X)
+        public static byte[] asUnsignedNByteArray(BigInteger x, int length)
         {
-            return ((X) ^ ROTATE((X), 9) ^ ROTATE((X), 17));
+            if (x == null)
+            {
+                return null;
+            }
+
+            byte[] tmp = new byte[length];
+            int len = x.ToByteArray().Length;
+            if (len > length + 1)
+            {
+                return null;
+            }
+
+            if (len == length + 1)
+            {
+                if (x.ToByteArray()[0] != 0)
+                {
+                    return null;
+                }
+                else
+                {
+                    System.Array.Copy(x.ToByteArray(), 1, tmp, 0, length);
+                    return tmp;
+                }
+            }
+            else
+            {
+                System.Array.Copy(x.ToByteArray(), 0, tmp, length - len, len);
+                return tmp;
+            }
+
         }
 
-        private int P1(int X)
+        /**
+         * 大数字转换字节流（字节数组）型数据
+         * 
+         * @param n
+         * @return
+         */
+        public static byte[] byteConvert32Bytes(BigInteger n)
         {
-            return ((X) ^ ROTATE((X), 15) ^ ROTATE((X), 23));
+            byte[] tmpd = null;
+            if (n == null)
+            {
+                return null;
+            }
+
+            if (n.ToByteArray().Length == 33)
+            {
+                tmpd = new byte[32];
+                System.Array.Copy(n.ToByteArray(), 1, tmpd, 0, 32);
+            }
+            else if (n.ToByteArray().Length == 32)
+            {
+                tmpd = n.ToByteArray();
+            }
+            else
+            {
+                tmpd = new byte[32];
+                for (int i = 0; i < 32 - n.ToByteArray().Length; i++)
+                {
+                    tmpd[i] = 0;
+                }
+                System.Array.Copy(n.ToByteArray(), 0, tmpd, 32 - n.ToByteArray().Length, n.ToByteArray().Length);
+            }
+            return tmpd;
         }
 
-        private int FF_00_15(int X, int Y, int Z)
-        {
-            return (X ^ Y ^ Z);
-        }
-
-        private int FF_16_63(int X, int Y, int Z)
-        {
-            return ((X & Y) | (X & Z) | (Y & Z));
-        }
-
-        private int GG_00_15(int X, int Y, int Z)
-        {
-            return (X ^ Y ^ Z);
-        }
-
-        private int GG_16_63(int X, int Y, int Z)
-        {
-            return ((X & Y) | (~X & Z));
-        }
-
-        //[STAThread]
-        #region 测试并打印各个参数
-        //public static void Main()
-        //{
-        //    byte[] msg1 = Encoding.Default.GetBytes("abc");
-        //    byte[] msg2 = Encoding.Default.GetBytes("abcd");
-        //    byte[] md = new byte[32];
-
-        //    SM3Digest sm3 = new SM3Digest();
-
-        //    // abcBlockUpdate
-        //    sm3.BlockUpdate(msg1, 0, msg1.Length);
-        //    sm3.DoFinal(md, 0);
-        //    System.String s = new UTF8Encoding().GetString(Hex.Encode(md));
-        //    System.Console.Out.WriteLine(s);
-
-        //    // abc*16
-        //    for (int i = 0; i < 16; i++)
-        //        sm3.BlockUpdate(msg2, 0, msg2.Length);
-        //    sm3.DoFinal(md, 0);
-        //    System.String s1 = new UTF8Encoding().GetString(Hex.Encode(md));
-        //    System.Console.Out.WriteLine(s1);
-
-        //    // abc + abc*15
-        //    SM3Digest sm3_ = new SM3Digest();
-        //    sm3_.BlockUpdate(msg2, 0, msg2.Length);
-        //    sm3 = new SM3Digest(sm3_);
-        //    for (int i = 1; i < 16; i++)
-        //        sm3.BlockUpdate(msg2, 0, msg2.Length);
-        //    sm3.DoFinal(md, 0);
-        //    System.String s2 = new UTF8Encoding().GetString(Hex.Encode(md));
-        //    System.Console.Out.WriteLine(s2);
-        //    Console.ReadLine();
-        //    /*
-        //    66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
-        //    debe9ff92275b8a138604889c18e5a4d6fdb70e5387e5765293dcba39c0c5732
-        //    debe9ff92275b8a138604889c18e5a4d6fdb70e5387e5765293dcba39c0c5732
-        //    */
-        //}
-        #endregion
     }
 }

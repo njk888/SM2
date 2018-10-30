@@ -81,29 +81,9 @@ namespace ChinaHuJinXieHuiJob.lib
 
             try
             {
-                //File file2 = null;
-                //byte[] pubx = CryptoUtil.toByteArray(Config.PUB_X_KEY);
-                //// 公钥2
-                //byte[] puby = CryptoUtil.toByteArray(Config.PUB_Y_KEY);
-                //ECPoint pubKey = SMUtil.createECPoint(pubx, puby); ;
-                ////需要加密文件
-                //File file = new File(sourceFile);
-                ////把文件变成直接数组
-                //byte[] b = CryptoUtil.readFile(file);
-                ////加密 返回密文数组
-                //byte[] b2 = SMUtil.encryptBySM2(pubKey, b);
-                ////加密写成.enc文件
-                //file2 = new File(newFile);
-                //if (!file2.exists())
-                //{
-                //    file2.createNewFile();
-                //}
-                //CryptoUtil.writeFile(b2, file2);
-
-
                 /////////////////////////////
 
-                FileStream fileStream = new FileStream(sourceFile, FileMode.Open);
+                FileStream fileStream = new FileStream(sourceFile, FileMode.Open,FileAccess.Read);
                 //文件指针指向0位置
                 fileStream.Seek(0, SeekOrigin.Begin);
 
@@ -141,7 +121,7 @@ namespace ChinaHuJinXieHuiJob.lib
                 System.Array.Copy(c3, 0, encData, c1.GetEncoded().Length + source.Length, c3.Length);
 
 
-                FileStream newFileStream = new FileStream(newFile, FileMode.Create);
+                FileStream newFileStream = new FileStream(newFile, FileMode.CreateNew);
 
                 //将字符数组转换为正确的字节格式
                 //Encoder enc = Encoding.UTF8.GetEncoder();
@@ -164,51 +144,40 @@ namespace ChinaHuJinXieHuiJob.lib
         /// <param name="sourceFile"></param>
         /// <param name="newFile"></param>
         /// <returns></returns>
-        public static string encryptString(string sourceStr)
+        public static byte[] encryptString(byte[] data)
         {
-
             try
             {
-
-
-                byte[] sourceData = UTF8Encoding.UTF8.GetBytes(sourceStr);
+                //byte[] sourceData = UTF8Encoding.UTF8.GetBytes(sourceStr);
+                byte[] source = new byte[data.Length];
+                System.Array.Copy(data, 0, source, 0, data.Length);
 
 
                 //加密 返回密文数组
-                //byte[] b2 = SMUtil.encryptBySM2(pubKey, b);
-                SM2 sm2 = SM2.Instance;
-                string strcertPKX = Config.PUB_X_KEY;
-                string strcertPKY = Config.PUB_Y_KEY;
-                BigInteger biX = new BigInteger(strcertPKX, 16);
-                BigInteger biY = new BigInteger(strcertPKY, 16);
-                ECFieldElement x = new FpFieldElement(sm2.ecc_p, biX);
-                ECFieldElement y = new FpFieldElement(sm2.ecc_p, biY);
-                ECPoint userKey = new FpPoint(sm2.ecc_curve, x, y);
-
-
                 ChinaHuJinXieHuiJob.lib.SM2.Cipher cipher = new SM2.Cipher();
+
+                SM2 sm2 = SM2.Instance;
+                BigInteger biX = new BigInteger(Config.PUB_X_KEY, 16);
+                BigInteger biY = new BigInteger(Config.PUB_Y_KEY, 16);
+
+                ECPoint userKey = sm2.ecc_curve.CreatePoint(biX, biY);
                 ECPoint c1 = cipher.Init_enc(sm2, userKey);
-                byte[] source = new byte[sourceData.Length];
-                System.Array.Copy(sourceData, 0, source, 0, sourceData.Length);
-
-
-
+         
                 cipher.Encrypt(source);
                 byte[] c3 = new byte[32];
                 cipher.Dofinal(c3);
-
 
                 byte[] encData = new byte[c1.GetEncoded().Length + source.Length + c3.Length];
                 System.Array.Copy(c1.GetEncoded(), 0, encData, 0, c1.GetEncoded().Length);
                 System.Array.Copy(source, 0, encData, c1.GetEncoded().Length, source.Length);
                 System.Array.Copy(c3, 0, encData, c1.GetEncoded().Length + source.Length, c3.Length);
 
-                return UTF8Encoding.UTF8.GetString(encData);
+                return  encData;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.StackTrace);
-                return string.Empty;
+                return null;
             }
         }
 
@@ -224,38 +193,21 @@ namespace ChinaHuJinXieHuiJob.lib
 
             try
             {
-                ////解密
-                //File file3 = null;
-                //byte[] prvKey = CryptoUtil.toByteArray(Config.PRV_KEY);
-                ////加密写成.enc文件
-                //File file4 = new File(sourceFile);
-                ////读取需要解密文件
-                //byte[] prb = CryptoUtil.readFile(file4);
-                ////解密 返回明文数组
-                //byte[] prb2 = SMUtil.decryptBySM2(prvKey, prb);
-                //file3 = new File(newFile);
-                //if (!file3.getParentFile().exists())
-                //{
-                //    //            	boolean mkdirs = file3.getParentFile().mkdirs();
-                //    file3.getParentFile().mkdirs();
-                //}
-                //if (!file3.exists())
-                //{
-                //    //				boolean createNewFile = file3.createNewFile();
-                //    file3.createNewFile();
-                //}
-                ////解密写成.zip文件
-                //CryptoUtil.writeFile(prb2, file3);
-
-
                 /////////////////////////////
 
-                FileStream fileStream = new FileStream(sourceFile, FileMode.Open);
-                //文件指针指向0位置
-                fileStream.Seek(0, SeekOrigin.Begin);
+                FileStream fileStream = new FileStream(sourceFile, FileMode.Open,FileAccess.Read);
 
-                byte[] encryptedData = new byte[fileStream.Length];
-                fileStream.Read(encryptedData, 0, (int)fileStream.Length);
+                BinaryReader sr = new BinaryReader(fileStream);
+
+                //byte[] encryptedData = Encoding.ASCII.GetBytes(sr.r));
+                byte[] encryptedData= sr.ReadBytes((int)fileStream.Length);
+                //文件指针指向0位置
+                //fileStream.Seek(0, SeekOrigin.Begin);
+
+                //byte[] encryptedData = new byte[fileStream.Length];
+                //fileStream.Read(encryptedData, 0, (int)fileStream.Length);
+
+                sr.Close();
                 fileStream.Close();
 
                 //加密 返回密文数组
@@ -302,13 +254,14 @@ namespace ChinaHuJinXieHuiJob.lib
                 var resultData = SM2Utils.decrypt(UTF8Encoding.UTF8.GetBytes(Config.PRV_KEY) ,encryptedData);
 
 
-                FileStream newFileStream = new FileStream(newFile, FileMode.Create);
-
+                FileStream newFileStream = new FileStream(newFile, FileMode.CreateNew);
+                BinaryWriter bw = new BinaryWriter(newFileStream);
                 //将字符数组转换为正确的字节格式
                 //Encoder enc = Encoding.UTF8.GetEncoder();
                 //enc.GetBytes(charData, 0, charData.Length, byData, 0, true);
-                newFileStream.Seek(0, SeekOrigin.Begin);
-                newFileStream.Write(resultData, 0, resultData.Length);
+                bw.Seek(0, SeekOrigin.Begin);
+                bw.Write(resultData, 0, resultData.Length);
+                bw.Close();
                 newFileStream.Close();
             }
             catch (Exception e)
@@ -325,23 +278,24 @@ namespace ChinaHuJinXieHuiJob.lib
         /// <param name="sourceFile"></param>
         /// <param name="newFile"></param>
         /// <returns></returns>
-        public static string deccryptString(String sourceStr)
+        public static byte[] deccryptString(byte[] sourceStr)
         {
 
             try
             {
 
-                byte[] encryptedData = UTF8Encoding.UTF8.GetBytes(sourceStr);
+               // byte[] encryptedData = Convert.FromBase64String(sourceStr);
 
-                var resultData = SM2Utils.decrypt(UTF8Encoding.UTF8.GetBytes(Config.PRV_KEY), encryptedData);
+                BigInteger bigPrivateKey = new BigInteger(Config.PRV_KEY, 16);
+                var resultData = SM2Utils.decrypt(bigPrivateKey.ToByteArray(), sourceStr);
 
 
-                return UTF8Encoding.UTF8.GetString(resultData);
+                return  resultData;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.StackTrace);
-                return string.Empty;
+                return null;
             }
             
         }
@@ -383,6 +337,11 @@ namespace ChinaHuJinXieHuiJob.lib
 
             return result;
         }
+
+        //public static byte charToByte(char c)
+        //{
+        //    return (byte)"0123456789ABCDEF".IndexOf(c);
+        //}
 
         /// <summary>
         /// byte数组转十六进制字符串(没有0x）
