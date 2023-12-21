@@ -268,7 +268,7 @@ namespace SM2Crypto.Lib
                     byte[] outBytes = new byte[16];
                     byte[] out1 = new byte[16];
 
-                    Array.Copy(bins, i * 16, inBytes, 0, length > 16 ? 16 : length);
+                    Array.Copy(bins, j * 16, inBytes, 0, length > 16 ? 16 : length);
                     for (i = 0; i < 16; i++)
                     {
                         outBytes[i] = ((byte)(inBytes[i] ^ iv[i]));
